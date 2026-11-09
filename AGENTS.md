@@ -8,6 +8,9 @@
   - `src/CampusBooking.Infrastructure` — EF Core `AppDbContext` + entity configs + `Migrations/` + `DbSeeder`
 - **ORM**: `Microsoft.EntityFrameworkCore` 9.0.0 + `Pomelo.EntityFrameworkCore.MySql` 9.0.0 (EF Core 9 runs on .NET 10 runtime; Pomelo 10.x not yet released)
 - **Database**: MySQL 8 in Docker container `campus-mysql`, `localhost:3306`, db `campus_db`, user `root`/`root`. Schema matches ERD in `Skills/dbmodel.md` (8 tables).
+- **Backend port**: `http://localhost:5020` (configured via `--urls`; can be changed to any available port).
+- **CORS**: Configured to allow `http://localhost:5173` (Vite dev server) with credentials.
+- **Frontend**: `http://localhost:5173` (Vite), configured via `.env` `VITE_API_BASE_URL=http://localhost:5020`.
 - **Data seeding**: `IDbSeeder`/`DbSeeder` service registered scoped, runs on startup (idempotent — no-op if `complexe_sportive` already has data). Seeds:
   - Complex: "Complexul Sportiv USV Suceava", Str. Universității 13, Suceava
   - Courts: Fotbal (60 RON/hr, indoor), Tenis (50 RON/hr, indoor), Baschet (40 RON/hr, outdoor), Volei (35 RON/hr, outdoor)

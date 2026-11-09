@@ -31,6 +31,18 @@ builder.Services.AddScoped<IDbSeeder, DbSeeder>();
 
 builder.Services.AddControllers();
 
+// CORS for frontend dev server (localhost:5173)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
 // JWT authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "CampusSportsBookingSuperSecretKey12345!";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -119,6 +131,7 @@ app.MapGet("/health", async (AppDbContext db) =>
     }
 });
 
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
