@@ -1,0 +1,17 @@
+# Build artifacts
+bin/
+obj/
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.user
+
+# Solution/user files
+*.slnx
+*.DotSettings.user
+
+# Temporary logs
+*.log
+tmp/
