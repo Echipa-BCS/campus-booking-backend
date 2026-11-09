@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace CampusBooking.Infrastructure.DTOs;
 
 /// <summary>
@@ -17,7 +19,11 @@ public class RegisterRequest
 /// </summary>
 public class LoginRequest
 {
+    [Required]
+    [EmailAddress]
     public string Email { get; set; } = string.Empty;
+
+    [Required]
     public string Parola { get; set; } = string.Empty;
 }
 
