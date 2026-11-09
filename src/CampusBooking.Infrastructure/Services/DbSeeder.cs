@@ -157,6 +157,33 @@ public class DbSeeder : IDbSeeder
             }
         };
         _db.Utilizatori.AddRange(users);
+        await _db.SaveChangesAsync(ct);
+
+        // -----------------------------------------------------------------
+        // 5. Subscriptions (abonamente) — sample active subscriptions
+        // -----------------------------------------------------------------
+        var abonamente = new List<Abonament>
+        {
+            new()
+            {
+                UtilizatorId = users[0].Id, // student
+                Tip = TipAbonament.GENERAL_ACCESS,
+                DataStart = DateTime.UtcNow.AddDays(-30),
+                DataExpirare = DateTime.UtcNow.AddDays(30),
+                SedinteRamase = 5,
+                Activ = true,
+            },
+            new()
+            {
+                UtilizatorId = users[1].Id, // profesor
+                Tip = TipAbonament.INTERVAL_FIX,
+                DataStart = DateTime.UtcNow.AddDays(-30),
+                DataExpirare = DateTime.UtcNow.AddDays(30),
+                SedinteRamase = 3,
+                Activ = true,
+            },
+        };
+        _db.Abonamente.AddRange(abonamente);
 
         await _db.SaveChangesAsync(ct);
     }
