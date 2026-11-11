@@ -18,4 +18,5 @@ public class RezervareEchipamentResponse
     public string EchipamentDenumire { get; set; } = string.Empty;
     public int Cantitate { get; set; }
     public decimal SubtotalPret { get; set; }
+    public decimal PretTotalRezervare { get; set; }
 }
