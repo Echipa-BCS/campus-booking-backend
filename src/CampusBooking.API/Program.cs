@@ -1,10 +1,7 @@
 using CampusBooking.Infrastructure;
 using CampusBooking.Infrastructure.Services;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,45 +20,10 @@ builder.Services.AddScoped<IRezervareService, RezervareService>();
 // Mock payment & subscription service
 builder.Services.AddScoped<IPlataService, PlataService>();
 
-// Auth service
-builder.Services.AddScoped<IAuthService, AuthService>();
-
 // Database seeder
 builder.Services.AddScoped<IDbSeeder, DbSeeder>();
 
 builder.Services.AddControllers();
-
-// CORS for frontend dev server (localhost:5173)
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.WithOrigins("http://localhost:5173")
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
-    });
-});
-
-// JWT authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "CampusSportsBookingSuperSecretKey12345!";
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "CampusBooking",
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "CampusBookingClient",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            ClockSkew = TimeSpan.Zero,
-        };
-    });
-
-builder.Services.AddAuthorization();
 
 // Swagger / OpenAPI documentation
 builder.Services.AddEndpointsApiExplorer();
@@ -72,31 +34,6 @@ builder.Services.AddSwaggerGen(c =>
         Title = "Campus Sports Booking API",
         Version = "v1",
         Description = "Academic/lab project: sports complexes catalog, court search, temporary booking, mock payments & subscriptions."
-    });
-
-    // Add JWT authorization to Swagger
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
     });
 });
 
@@ -130,10 +67,6 @@ app.MapGet("/health", async (AppDbContext db) =>
         return Results.Problem($"Database connection failed: {ex.Message}", statusCode: 500);
     }
 });
-
-app.UseCors("AllowFrontend");
-app.UseAuthentication();
-app.UseAuthorization();
 
 app.MapControllers();
 
