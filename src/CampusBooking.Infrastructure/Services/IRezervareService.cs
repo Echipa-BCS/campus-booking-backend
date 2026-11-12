@@ -20,4 +20,13 @@ public interface IRezervareService
     Task<(bool IsAvailable, TemporaryReservationResponse? Reservation, string? ErrorMessage)> ReserveTemporarilyAsync(
         TemporaryReservationRequest req,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Adds equipment to an existing temporary reservation, decrementing equipment stock.
+    /// </summary>
+    Task<(bool Success, RezervareEchipamentResponse? Equipment, string? ErrorMessage)> AddEchipamentToRezervareAsync(
+        int rezervareId,
+        int utilizatorId,
+        RezervareEchipamentRequest req,
+        CancellationToken ct = default);
 }
