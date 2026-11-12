@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using CampusBooking.Infrastructure.DTOs;
 
 namespace CampusBooking.Infrastructure.Services;
@@ -29,20 +28,5 @@ public interface IRezervareService
         int rezervareId,
         int utilizatorId,
         RezervareEchipamentRequest req,
-        CancellationToken ct = default);
-
-    /// <summary>
-    /// Returns all occupied or temporarily locked slots for a given date (and optional court).
-    /// </summary>
-    Task<IReadOnlyList<OccupiedSlotDto>> GetOccupiedSlotsAsync(
-        DateTime date,
-        int? terenId = null,
-        CancellationToken ct = default);
-
-    /// <summary>
-    /// Returns all available sports equipment items, optionally filtered by complex.
-    /// </summary>
-    Task<IReadOnlyList<EchipamentDto>> GetEchipamenteAsync(
-        int? complexId = null,
         CancellationToken ct = default);
 }
