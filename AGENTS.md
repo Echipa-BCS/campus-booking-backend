@@ -31,9 +31,7 @@ docker exec -i campus-mysql mysql -u root -proot campus_db   # mysql shell
 
 - `GET /api/complexe-sportive` — list all sports complexes
 - `GET /api/terenuri?location=<addr>&tipSport=<sport>` — courts with dual filter (location matches complex `Adresa`/`Nume`; `tipSport` matches court `tip_sport`); omit params for all courts
-- `GET /api/rezervari/availability?date=<YYYY-MM-DD>&terenId=<id>` — list occupied (`CONFIRMATA`) and active temporary (`TEMPORAR_BLOCATA`) slots for the specified date
-- `GET /api/echipamente` (alias `GET /api/rezervari/echipamente`) — list all available sports equipment (`id`, `complexId`, `denumire`, `tipSport`, `stocTotal`, `tarifInchirierePerOra`)
-- `POST /api/rezervari/temporary` — body `{ utilizatorId, terenId, dataStart, dataEnd }` → `201` with `TEMPORAR_BLOCATA` + `dataExpirareBlocaj` (now + 10 min) + calculated `pretTotal` and `discountAplicat`; overlapping/occupied slot or past/invalid interval → `409 {"error":"..."}`
+- `POST /api/rezervari/temporary` — body `{ utilizatorId, terenId, dataStart, dataEnd }` → `201` with `TEMPORAR_BLOCATA` + `dataExpirareBlocaj` (now + 10 min) + calculated `pretTotal` and `discountAplicat`; overlapping/occupied slot → `409 {"error":"The time slot is no longer available"}`
 - Role-based pricing (§3 of `Skills/backendengine.md`, calculated inside `Serializable` transaction):
   - Base price = court `TarifOrarStandard` (RON/hr) × duration (hours)
   - STUDENT (`@student.usv.ro`): 40% discount; PROFESOR (`@usm.ro`): 20% discount; USER: 0% discount
@@ -49,10 +47,9 @@ docker exec -i campus-mysql mysql -u root -proot campus_db   # mysql shell
 
 ## User Bookings & Subscriptions
 
-- `GET /api/bookings` — requires auth → `200` list of user's reservations with court, complex, dates, total, discount, status, and rented equipment (`echipamente`); automatically marks expired temporary locks as `EXPIRATA` and restores stock
-- `PUT /api/bookings/{id}/cancel` — requires auth → `200` cancels booking (sets `stare=ANULATA`, restores equipment stock and subscription session if applicable); not found → `404`; already cancelled/finalized → `400`
+- `GET /api/bookings` — requires auth → `200` list of user's reservations with court, complex, dates, total, discount, status
+- `PUT /api/bookings/{id}/cancel` — requires auth → `200` cancels booking (sets `stare=ANULATA`); not found → `404`; already cancelled/finalized → `400`
 - `GET /api/subscriptions` — requires auth → `200` list of user's subscriptions with tip, dates, remaining sessions, active status
-- `POST /api/subscriptions/purchase` — requires auth; body `{ tip: "GENERAL_ACCESS" | "INTERVAL_FIX" }` → `201` creates and activates a new subscription with role-based discount
 
 ## User Profile
 
