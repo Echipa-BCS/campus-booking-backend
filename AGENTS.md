@@ -8,6 +8,9 @@
   - `src/CampusBooking.Infrastructure` — EF Core `AppDbContext` + entity configs + `Migrations/` + `DbSeeder`
 - **ORM**: `Microsoft.EntityFrameworkCore` 9.0.0 + `Pomelo.EntityFrameworkCore.MySql` 9.0.0 (EF Core 9 runs on .NET 10 runtime; Pomelo 10.x not yet released)
 - **Database**: MySQL 8 in Docker container `campus-mysql`, `localhost:3306`, db `campus_db`, user `root`/`root`. Schema matches ERD in `Skills/dbmodel.md` (8 tables).
+- **Backend port**: `http://localhost:5020` (configured via `--urls`; can be changed to any available port).
+- **CORS**: Configured to allow `http://localhost:5173` (Vite dev server) with credentials.
+- **Frontend**: `http://localhost:5173` (Vite), configured via `.env` `VITE_API_BASE_URL=http://localhost:5020`.
 - **Data seeding**: `IDbSeeder`/`DbSeeder` service registered scoped, runs on startup (idempotent — no-op if `complexe_sportive` already has data). Seeds:
   - Complex: "Complexul Sportiv USV Suceava", Str. Universității 13, Suceava
   - Courts: Fotbal (60 RON/hr, indoor), Tenis (50 RON/hr, indoor), Baschet (40 RON/hr, outdoor), Volei (35 RON/hr, outdoor)
@@ -35,6 +38,28 @@ docker exec -i campus-mysql mysql -u root -proot campus_db   # mysql shell
   - Stored in `rezervari.pret_total` and `rezervari.discount_aplicat`
 - `POST /api/plati/single-session` — body `{ utilizatorId, rezervareId, suma, metodaPlata }` → `200` mock payment; transitions `TEMPORAR_BLOCATA` → `CONFIRMATA`, logs `plati` with `stare=SUCCES`; errors → `400`
 - `POST /api/plati/subscription` — body `{ utilizatorId, rezervareId }` → `200` mock subscription payment; verifies active `abonamente` (`activ=1`, `sedinte_ramase>0`, `data_expirare>now`), decrements `sedinte_ramase`, transitions to `CONFIRMATA`, logs `plati` with `stare=SUCCES`; errors → `400`
+
+## Authentication (§1 of `Skills/backendengine.md`)
+
+- `POST /api/auth/register` — body `{ nume, prenume, email, parola, telefon? }` → `201` with JWT token + user; role auto-assigned by email suffix (`@student.usv.ro`→STUDENT, `@usm.ro`→PROFESOR, else USER); duplicate email → `400`
+- `POST /api/auth/login` — body `{ email, parola }` → `200` with JWT token + user; wrong credentials → `401`
+- `GET /api/auth/me` — requires `Authorization: Bearer <token>` → `200` user profile; missing/invalid token → `401`
+
+## User Bookings & Subscriptions
+
+- `GET /api/bookings` — requires auth → `200` list of user's reservations with court, complex, dates, total, discount, status
+- `PUT /api/bookings/{id}/cancel` — requires auth → `200` cancels booking (sets `stare=ANULATA`); not found → `404`; already cancelled/finalized → `400`
+- `GET /api/subscriptions` — requires auth → `200` list of user's subscriptions with tip, dates, remaining sessions, active status
+
+## User Profile
+
+- `GET /api/profile` — requires auth → `200` user profile (nume, prenume, email, telefon, rol)
+- `PUT /api/profile` — body `{ nume, prenume, email, telefon }` → `200` updated profile; duplicate email → `400`
+
+## Equipment Rental
+
+- `POST /api/rezervari/{rezervareId}/echipamente` — requires auth; body `{ echipamentId, cantitate }` → `201` equipment added to temporary reservation, stock decremented; insufficient stock → `400`; not temporary/expired → `400`
+
 - `GET /swagger/v1/swagger.json` — OpenAPI 3.0 spec; Swagger UI served at app root (`/`) via `RoutePrefix = string.Empty`
 
 ## Conventions (from Skills, authoritative)
@@ -57,5 +82,6 @@ Read the relevant skill before implementation; skills are the current source of 
 - `Skills/backendengine.md` — roles by email suffix, temporary slot locking, double-booking prevention, dynamic pricing.
 - `Skills/booking_service.md` — catalog/search endpoints, dual filtering, temporary lock + `dataExpirareBlocaj`, `Serializable` concurrency protection, expired-lock handling.
 - `Skills/payment_stripe.md` — mock payment processing, subscription verification + `sedinte_ramase` decrement, `SUCCES` payment records, `TEMPORAR_BLOCATA` → `CONFIRMATA` transition.
+- Auth (implemented inline per `Skills/backendengine.md` §1) — JWT auth, role-based registration, password hashing (SHA-256).
 
 If a skill and existing code disagree, the skill wins until updated. Add new skills to `Skills/` as the project evolves and keep this file pointing at them.
