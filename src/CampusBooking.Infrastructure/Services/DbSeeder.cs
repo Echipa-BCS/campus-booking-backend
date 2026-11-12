@@ -130,7 +130,7 @@ public class DbSeeder : IDbSeeder
                 Nume = "Popescu",
                 Prenume = "Alex",
                 Email = "alex.popescu@student.usv.ro",
-                ParolaHash = "hash_student",
+                ParolaHash = "EF92B778BAFE771E89245B89ECBC08A44A4E166C06659911881F383D4473E94F",
                 Telefon = "0712345678",
                 Rol = RolUtilizator.STUDENT,
                 DataInregistrare = DateTime.UtcNow
@@ -140,7 +140,7 @@ public class DbSeeder : IDbSeeder
                 Nume = "Ionescu",
                 Prenume = "Ion",
                 Email = "ion.ionescu@usm.ro",
-                ParolaHash = "hash_profesor",
+                ParolaHash = "EF92B778BAFE771E89245B89ECBC08A44A4E166C06659911881F383D4473E94F",
                 Telefon = "0723456789",
                 Rol = RolUtilizator.PROFESOR,
                 DataInregistrare = DateTime.UtcNow
@@ -150,13 +150,40 @@ public class DbSeeder : IDbSeeder
                 Nume = "User",
                 Prenume = "Standard",
                 Email = "user@gmail.com",
-                ParolaHash = "hash_user",
+                ParolaHash = "EF92B778BAFE771E89245B89ECBC08A44A4E166C06659911881F383D4473E94F",
                 Telefon = "0734567890",
                 Rol = RolUtilizator.USER,
                 DataInregistrare = DateTime.UtcNow
             }
         };
         _db.Utilizatori.AddRange(users);
+        await _db.SaveChangesAsync(ct);
+
+        // -----------------------------------------------------------------
+        // 5. Subscriptions (abonamente) — sample active subscriptions
+        // -----------------------------------------------------------------
+        var abonamente = new List<Abonament>
+        {
+            new()
+            {
+                UtilizatorId = users[0].Id, // student
+                Tip = TipAbonament.GENERAL_ACCESS,
+                DataStart = DateTime.UtcNow.AddDays(-30),
+                DataExpirare = DateTime.UtcNow.AddDays(30),
+                SedinteRamase = 5,
+                Activ = true,
+            },
+            new()
+            {
+                UtilizatorId = users[1].Id, // profesor
+                Tip = TipAbonament.INTERVAL_FIX,
+                DataStart = DateTime.UtcNow.AddDays(-30),
+                DataExpirare = DateTime.UtcNow.AddDays(30),
+                SedinteRamase = 3,
+                Activ = true,
+            },
+        };
+        _db.Abonamente.AddRange(abonamente);
 
         await _db.SaveChangesAsync(ct);
     }
