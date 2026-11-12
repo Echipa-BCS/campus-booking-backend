@@ -129,6 +129,96 @@ public class RezervareService : IRezervareService
         }
     }
 
+    /// <inheritdoc />
+    public async Task<(bool Success, RezervareEchipamentResponse? Equipment, string? ErrorMessage)> AddEchipamentToRezervareAsync(
+        int rezervareId,
+        int utilizatorId,
+        RezervareEchipamentRequest req,
+        CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+
+        using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+        try
+        {
+            // Step 1: load the reservation belonging to the requesting user.
+            var rezervare = await _db.Rezervari
+                .FirstOrDefaultAsync(r => r.Id == rezervareId && r.UtilizatorId == utilizatorId, ct);
+
+            if (rezervare is null)
+            {
+                await tx.RollbackAsync(ct);
+                return (false, null, "Rezervarea nu a fost găsit sau nu vă aparține.");
+            }
+
+            // Step 2: only temporary reservations can have equipment added.
+            if (rezervare.Stare != StareRezervare.TEMPORAR_BLOCATA)
+            {
+                await tx.RollbackAsync(ct);
+                return (false, null, "Echipamentul poate fi adăugat doar unei rezervări temporare.");
+            }
+
+            // Step 3: reject expired temporary locks.
+            if (rezervare.DataExpirareBlocaj.HasValue && rezervare.DataExpirareBlocaj.Value < now)
+            {
+                await tx.RollbackAsync(ct);
+                return (false, null, "Rezervarea temporară a expirat.");
+            }
+
+            // Step 4: load the equipment and check stock.
+            var echipament = await _db.Echipamente
+                .FirstOrDefaultAsync(e => e.Id == req.EchipamentId, ct);
+
+            if (echipament is null)
+            {
+                await tx.RollbackAsync(ct);
+                return (false, null, "Echipamentul nu a fost găsit.");
+            }
+
+            if (echipament.StocTotal < req.Cantitate)
+            {
+                await tx.RollbackAsync(ct);
+                return (false, null, "Stoc insuficient pentru acest echipament.");
+            }
+
+            // Step 5: create the reservation-equipment link.
+            var subtotal = echipament.TarifInchirierePerOra * req.Cantitate;
+
+            var rezervareEchipament = new RezervareEchipament
+            {
+                RezervareId = rezervareId,
+                EchipamentId = req.EchipamentId,
+                Cantitate = req.Cantitate,
+                SubtotalPret = subtotal,
+            };
+
+            _db.RezervareEchipamente.Add(rezervareEchipament);
+
+            // Step 6: decrement equipment stock.
+            echipament.StocTotal -= req.Cantitate;
+
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            return (
+                true,
+                new RezervareEchipamentResponse
+                {
+                    EchipamentId = echipament.Id,
+                    EchipamentDenumire = echipament.Denumire,
+                    Cantitate = req.Cantitate,
+                    SubtotalPret = subtotal,
+                },
+                null);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
+        }
+    }
+
     private static TemporaryReservationResponse MapToResponse(Rezervare r) => new()
     {
         Id = r.Id,
