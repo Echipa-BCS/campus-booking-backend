@@ -30,46 +30,19 @@ public class RezervariController : ControllerBase
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
     /// 201 Created with the temporary reservation when the slot is available;
-    /// 409 with a JSON error body when the slot is no longer available or invalid.
+    /// 409 with a JSON error body when the slot is no longer available.
     /// </returns>
     [HttpPost("temporary")]
     public async Task<IResult> ReserveTemporarily([FromBody] TemporaryReservationRequest req, CancellationToken ct = default)
     {
-        var (isAvailable, reservation, errorMessage) = await _rezervareService.ReserveTemporarilyAsync(req, ct);
+        var (isAvailable, reservation, _) = await _rezervareService.ReserveTemporarilyAsync(req, ct);
 
         if (isAvailable && reservation is not null)
         {
             return Results.Json(reservation, statusCode: 201);
         }
 
-        return Results.Json(new { error = errorMessage ?? "The time slot is no longer available" }, statusCode: 409);
-    }
-
-    /// <summary>
-    /// Returns all occupied or temporarily locked slots for a given date (and optional court).
-    /// </summary>
-    [HttpGet("availability")]
-    public async Task<IResult> GetAvailability(
-        [FromQuery] DateTime? date,
-        [FromQuery] int? terenId,
-        CancellationToken ct = default)
-    {
-        var targetDate = date ?? DateTime.Now.Date;
-        var slots = await _rezervareService.GetOccupiedSlotsAsync(targetDate, terenId, ct);
-        return Results.Json(slots, statusCode: 200);
-    }
-
-    /// <summary>
-    /// Returns available sports equipment items, optionally filtered by complex.
-    /// </summary>
-    [HttpGet("echipamente")]
-    [HttpGet("/api/echipamente")]
-    public async Task<IResult> GetEchipamente(
-        [FromQuery] int? complexId,
-        CancellationToken ct = default)
-    {
-        var equipment = await _rezervareService.GetEchipamenteAsync(complexId, ct);
-        return Results.Json(equipment, statusCode: 200);
+        return Results.Json(new { error = "The time slot is no longer available" }, statusCode: 409);
     }
 
     /// <summary>

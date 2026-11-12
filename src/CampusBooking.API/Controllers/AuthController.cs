@@ -2,10 +2,7 @@ using CampusBooking.Infrastructure.DTOs;
 using CampusBooking.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.IO;
-using System.Linq;
 using System.Security.Claims;
-using System.Text.Json;
 
 namespace CampusBooking.API.Controllers;
 
@@ -51,30 +48,10 @@ public class AuthController : ControllerBase
     /// Logs in a user and returns a JWT access token.
     /// </summary>
     [HttpPost("login")]
-    public async Task<IActionResult> Login(CancellationToken ct = default)
+    public async Task<IActionResult> Login(
+        [FromBody] LoginRequest req,
+        CancellationToken ct = default)
     {
-        using var reader = new StreamReader(Request.Body);
-        var body = await reader.ReadToEndAsync();
-        Console.WriteLine($"[DEBUG] Login raw body: {body}");
-
-        LoginRequest? req;
-        try
-        {
-            req = JsonSerializer.Deserialize<LoginRequest>(body, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-        }
-        catch (JsonException ex)
-        {
-            return BadRequest(new { error = "Invalid JSON body", details = ex.Message });
-        }
-
-        if (req == null || string.IsNullOrEmpty(req.Email) || string.IsNullOrEmpty(req.Parola))
-        {
-            return BadRequest(new { error = "Email and parola are required" });
-        }
-
         var (success, response, errorMessage) =
             await _authService.LoginAsync(req, ct);
 

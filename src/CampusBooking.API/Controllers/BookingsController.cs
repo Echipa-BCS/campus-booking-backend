@@ -38,39 +38,9 @@ public class BookingsController : ControllerBase
             return Unauthorized(new { error = "Token invalid sau expirat." });
         }
 
-        var now = DateTime.UtcNow;
-
-        // Auto-expire any TEMPORAR_BLOCATA reservations whose lock has expired and restore their equipment stock
-        var expiredLocks = await _db.Rezervari
-            .Include(r => r.RezervareEchipamente)
-            .ThenInclude(re => re.Echipament)
-            .Where(r => r.UtilizatorId == userId
-                && r.Stare == StareRezervare.TEMPORAR_BLOCATA
-                && r.DataExpirareBlocaj.HasValue
-                && r.DataExpirareBlocaj.Value < now)
-            .ToListAsync(ct);
-
-        if (expiredLocks.Count > 0)
-        {
-            foreach (var exp in expiredLocks)
-            {
-                exp.Stare = StareRezervare.EXPIRATA;
-                foreach (var re in exp.RezervareEchipamente)
-                {
-                    if (re.Echipament is not null)
-                    {
-                        re.Echipament.StocTotal += re.Cantitate;
-                    }
-                }
-            }
-            await _db.SaveChangesAsync(ct);
-        }
-
         var bookings = await _db.Rezervari
             .Include(r => r.Teren)
             .ThenInclude(t => t!.Complex)
-            .Include(r => r.RezervareEchipamente)
-            .ThenInclude(re => re.Echipament)
             .Where(r => r.UtilizatorId == userId)
             .OrderByDescending(r => r.DataStart)
             .Select(r => new BookingSummaryDto
@@ -87,16 +57,8 @@ public class BookingsController : ControllerBase
                 PretTotal = r.PretTotal,
                 DiscountAplicat = r.DiscountAplicat,
                 DataExpirareBlocaj = r.DataExpirareBlocaj.HasValue
-                    ? DateTime.SpecifyKind(r.DataExpirareBlocaj.Value, DateTimeKind.Utc).ToString("o")
+                    ? r.DataExpirareBlocaj.Value.ToString("o")
                     : null,
-                Echipamente = r.RezervareEchipamente.Select(re => new RezervareEchipamentResponse
-                {
-                    EchipamentId = re.EchipamentId,
-                    EchipamentDenumire = re.Echipament != null ? re.Echipament.Denumire : string.Empty,
-                    Cantitate = re.Cantitate,
-                    SubtotalPret = re.SubtotalPret,
-                    PretTotalRezervare = r.PretTotal,
-                }).ToList(),
             })
             .ToListAsync(ct);
 
@@ -119,10 +81,6 @@ public class BookingsController : ControllerBase
         }
 
         var rezervare = await _db.Rezervari
-            .Include(r => r.RezervareEchipamente)
-            .ThenInclude(re => re.Echipament)
-            .Include(r => r.Plati)
-            .ThenInclude(p => p.Abonament)
             .FirstOrDefaultAsync(r => r.Id == id && r.UtilizatorId == userId, ct);
 
         if (rezervare is null)
@@ -131,28 +89,9 @@ public class BookingsController : ControllerBase
         }
 
         if (rezervare.Stare == StareRezervare.ANULATA ||
-            rezervare.Stare == StareRezervare.FINALIZATA ||
-            rezervare.Stare == StareRezervare.EXPIRATA)
+            rezervare.Stare == StareRezervare.FINALIZATA)
         {
             return BadRequest(new { error = "Această rezervare nu poate fi anulată." });
-        }
-
-        // Restore any rented equipment stock
-        foreach (var re in rezervare.RezervareEchipamente)
-        {
-            if (re.Echipament is not null)
-            {
-                re.Echipament.StocTotal += re.Cantitate;
-            }
-        }
-
-        // If confirmed via subscription, refund 1 session to the subscription
-        foreach (var plata in rezervare.Plati)
-        {
-            if (plata.Abonament is not null)
-            {
-                plata.Abonament.SedinteRamase += 1;
-            }
         }
 
         rezervare.Stare = StareRezervare.ANULATA;

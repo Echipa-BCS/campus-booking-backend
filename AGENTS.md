@@ -8,9 +8,6 @@
   - `src/CampusBooking.Infrastructure` — EF Core `AppDbContext` + entity configs + `Migrations/` + `DbSeeder`
 - **ORM**: `Microsoft.EntityFrameworkCore` 9.0.0 + `Pomelo.EntityFrameworkCore.MySql` 9.0.0 (EF Core 9 runs on .NET 10 runtime; Pomelo 10.x not yet released)
 - **Database**: MySQL 8 in Docker container `campus-mysql`, `localhost:3306`, db `campus_db`, user `root`/`root`. Schema matches ERD in `Skills/dbmodel.md` (8 tables).
-- **Backend port**: `http://localhost:5020` (configured via `--urls`; can be changed to any available port).
-- **CORS**: Configured to allow `http://localhost:5173` (Vite dev server) with credentials.
-- **Frontend**: `http://localhost:5173` (Vite), configured via `.env` `VITE_API_BASE_URL=http://localhost:5020`.
 - **Data seeding**: `IDbSeeder`/`DbSeeder` service registered scoped, runs on startup (idempotent — no-op if `complexe_sportive` already has data). Seeds:
   - Complex: "Complexul Sportiv USV Suceava", Str. Universității 13, Suceava
   - Courts: Fotbal (60 RON/hr, indoor), Tenis (50 RON/hr, indoor), Baschet (40 RON/hr, outdoor), Volei (35 RON/hr, outdoor)
@@ -31,9 +28,7 @@ docker exec -i campus-mysql mysql -u root -proot campus_db   # mysql shell
 
 - `GET /api/complexe-sportive` — list all sports complexes
 - `GET /api/terenuri?location=<addr>&tipSport=<sport>` — courts with dual filter (location matches complex `Adresa`/`Nume`; `tipSport` matches court `tip_sport`); omit params for all courts
-- `GET /api/rezervari/availability?date=<YYYY-MM-DD>&terenId=<id>` — list occupied (`CONFIRMATA`) and active temporary (`TEMPORAR_BLOCATA`) slots for the specified date
-- `GET /api/echipamente` (alias `GET /api/rezervari/echipamente`) — list all available sports equipment (`id`, `complexId`, `denumire`, `tipSport`, `stocTotal`, `tarifInchirierePerOra`)
-- `POST /api/rezervari/temporary` — body `{ utilizatorId, terenId, dataStart, dataEnd }` → `201` with `TEMPORAR_BLOCATA` + `dataExpirareBlocaj` (now + 10 min) + calculated `pretTotal` and `discountAplicat`; overlapping/occupied slot or past/invalid interval → `409 {"error":"..."}`
+- `POST /api/rezervari/temporary` — body `{ utilizatorId, terenId, dataStart, dataEnd }` → `201` with `TEMPORAR_BLOCATA` + `dataExpirareBlocaj` (now + 10 min) + calculated `pretTotal` and `discountAplicat`; overlapping/occupied slot → `409 {"error":"The time slot is no longer available"}`
 - Role-based pricing (§3 of `Skills/backendengine.md`, calculated inside `Serializable` transaction):
   - Base price = court `TarifOrarStandard` (RON/hr) × duration (hours)
   - STUDENT (`@student.usv.ro`): 40% discount; PROFESOR (`@usm.ro`): 20% discount; USER: 0% discount
@@ -49,10 +44,9 @@ docker exec -i campus-mysql mysql -u root -proot campus_db   # mysql shell
 
 ## User Bookings & Subscriptions
 
-- `GET /api/bookings` — requires auth → `200` list of user's reservations with court, complex, dates, total, discount, status, and rented equipment (`echipamente`); automatically marks expired temporary locks as `EXPIRATA` and restores stock
-- `PUT /api/bookings/{id}/cancel` — requires auth → `200` cancels booking (sets `stare=ANULATA`, restores equipment stock and subscription session if applicable); not found → `404`; already cancelled/finalized → `400`
+- `GET /api/bookings` — requires auth → `200` list of user's reservations with court, complex, dates, total, discount, status
+- `PUT /api/bookings/{id}/cancel` — requires auth → `200` cancels booking (sets `stare=ANULATA`); not found → `404`; already cancelled/finalized → `400`
 - `GET /api/subscriptions` — requires auth → `200` list of user's subscriptions with tip, dates, remaining sessions, active status
-- `POST /api/subscriptions/purchase` — requires auth; body `{ tip: "GENERAL_ACCESS" | "INTERVAL_FIX" }` → `201` creates and activates a new subscription with role-based discount
 
 ## User Profile
 

@@ -13,11 +13,3 @@ public class AbonamentDto
     public bool Activ { get; set; }
     public string? UtilizatorEmail { get; set; }
 }
-
-/// <summary>
-/// Request payload for purchasing/activating a new subscription.
-/// </summary>
-public class PurchaseSubscriptionRequest
-{
-    public string Tip { get; set; } = "GENERAL_ACCESS";
-}

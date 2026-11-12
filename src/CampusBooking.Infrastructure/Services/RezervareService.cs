@@ -50,21 +50,6 @@ public class RezervareService : IRezervareService
     {
         var now = DateTime.UtcNow;
 
-        if (req.DataEnd <= req.DataStart)
-        {
-            return (false, null, "Intervalul orar selectat este invalid (ora de sfârșit trebuie să fie după ora de început).");
-        }
-
-        // Prevent booking in the past (compare against UTC if request is UTC, otherwise local time with 5-minute grace)
-        var referenceNow = req.DataStart.Kind == DateTimeKind.Utc
-            ? DateTime.UtcNow.AddMinutes(-5)
-            : DateTime.Now.AddMinutes(-5);
-
-        if (req.DataStart < referenceNow)
-        {
-            return (false, null, "Nu puteți efectua o rezervare în trecut. Alegeți o dată și un interval orar viitor.");
-        }
-
         using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
         try
@@ -159,8 +144,6 @@ public class RezervareService : IRezervareService
         {
             // Step 1: load the reservation belonging to the requesting user.
             var rezervare = await _db.Rezervari
-                .Include(r => r.Teren)
-                .Include(r => r.RezervareEchipamente)
                 .FirstOrDefaultAsync(r => r.Id == rezervareId && r.UtilizatorId == utilizatorId, ct);
 
             if (rezervare is null)
@@ -193,67 +176,30 @@ public class RezervareService : IRezervareService
                 return (false, null, "Echipamentul nu a fost găsit.");
             }
 
-            var existingEntry = rezervare.RezervareEchipamente
-                .FirstOrDefault(re => re.EchipamentId == req.EchipamentId);
-
-            if (existingEntry is not null)
+            if (echipament.StocTotal < req.Cantitate)
             {
-                // Restore previous stock before applying new quantity
-                echipament.StocTotal += existingEntry.Cantitate;
+                await tx.RollbackAsync(ct);
+                return (false, null, "Stoc insuficient pentru acest echipament.");
             }
 
-            if (req.Cantitate <= 0)
+            // Step 5: create the reservation-equipment link.
+            var subtotal = echipament.TarifInchirierePerOra * req.Cantitate;
+
+            var rezervareEchipament = new RezervareEchipament
             {
-                if (existingEntry is not null)
-                {
-                    _db.RezervareEchipamente.Remove(existingEntry);
-                    rezervare.RezervareEchipamente.Remove(existingEntry);
-                }
-            }
-            else
-            {
-                if (echipament.StocTotal < req.Cantitate)
-                {
-                    await tx.RollbackAsync(ct);
-                    return (false, null, "Stoc insuficient pentru acest echipament.");
-                }
+                RezervareId = rezervareId,
+                EchipamentId = req.EchipamentId,
+                Cantitate = req.Cantitate,
+                SubtotalPret = subtotal,
+            };
 
-                var durationHours = Math.Max(1m, (decimal)(rezervare.DataEnd - rezervare.DataStart).TotalHours);
-                var subtotal = Math.Round(echipament.TarifInchirierePerOra * req.Cantitate * durationHours, 2);
+            _db.RezervareEchipamente.Add(rezervareEchipament);
 
-                if (existingEntry is not null)
-                {
-                    existingEntry.Cantitate = req.Cantitate;
-                    existingEntry.SubtotalPret = subtotal;
-                }
-                else
-                {
-                    var rezervareEchipament = new RezervareEchipament
-                    {
-                        RezervareId = rezervareId,
-                        EchipamentId = req.EchipamentId,
-                        Cantitate = req.Cantitate,
-                        SubtotalPret = subtotal,
-                    };
-                    _db.RezervareEchipamente.Add(rezervareEchipament);
-                    rezervare.RezervareEchipamente.Add(rezervareEchipament);
-                }
-
-                echipament.StocTotal -= req.Cantitate;
-            }
-
-            // Recalculate reservation total price (court net + all equipment subtotals)
-            var courtDurationHours = Math.Max(1m, (decimal)(rezervare.DataEnd - rezervare.DataStart).TotalHours);
-            var courtBasePrice = courtDurationHours * (rezervare.Teren?.TarifOrarStandard ?? 0m);
-            var courtNetPrice = Math.Max(0m, Math.Round(courtBasePrice - rezervare.DiscountAplicat, 2));
-            var equipmentSum = rezervare.RezervareEchipamente.Sum(re => re.SubtotalPret);
-            rezervare.PretTotal = Math.Round(courtNetPrice + equipmentSum, 2);
+            // Step 6: decrement equipment stock.
+            echipament.StocTotal -= req.Cantitate;
 
             await _db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
-
-            var finalSubtotal = rezervare.RezervareEchipamente
-                .FirstOrDefault(re => re.EchipamentId == req.EchipamentId)?.SubtotalPret ?? 0m;
 
             return (
                 true,
@@ -261,9 +207,8 @@ public class RezervareService : IRezervareService
                 {
                     EchipamentId = echipament.Id,
                     EchipamentDenumire = echipament.Denumire,
-                    Cantitate = Math.Max(0, req.Cantitate),
-                    SubtotalPret = finalSubtotal,
-                    PretTotalRezervare = rezervare.PretTotal,
+                    Cantitate = req.Cantitate,
+                    SubtotalPret = subtotal,
                 },
                 null);
         }
@@ -272,70 +217,6 @@ public class RezervareService : IRezervareService
             await tx.RollbackAsync(ct);
             throw;
         }
-    }
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<OccupiedSlotDto>> GetOccupiedSlotsAsync(
-        DateTime date,
-        int? terenId = null,
-        CancellationToken ct = default)
-    {
-        var dayStart = date.Date;
-        var dayEnd = dayStart.AddDays(1);
-        var now = DateTime.UtcNow;
-
-        var query = _db.Rezervari
-            .AsNoTracking()
-            .Where(r => r.DataStart < dayEnd
-                && r.DataEnd > dayStart
-                && (r.Stare == StareRezervare.CONFIRMATA
-                    || (r.Stare == StareRezervare.TEMPORAR_BLOCATA
-                        && (!r.DataExpirareBlocaj.HasValue || r.DataExpirareBlocaj.Value > now))));
-
-        if (terenId.HasValue)
-        {
-            query = query.Where(r => r.TerenId == terenId.Value);
-        }
-
-        return await query
-            .OrderBy(r => r.DataStart)
-            .Select(r => new OccupiedSlotDto
-            {
-                Id = r.Id,
-                TerenId = r.TerenId,
-                UtilizatorId = r.UtilizatorId,
-                DataStart = r.DataStart,
-                DataEnd = r.DataEnd,
-                Stare = r.Stare.ToString(),
-                DataExpirareBlocaj = r.DataExpirareBlocaj,
-            })
-            .ToListAsync(ct);
-    }
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<EchipamentDto>> GetEchipamenteAsync(
-        int? complexId = null,
-        CancellationToken ct = default)
-    {
-        var query = _db.Echipamente.AsNoTracking();
-        if (complexId.HasValue)
-        {
-            query = query.Where(e => e.ComplexId == complexId.Value);
-        }
-
-        return await query
-            .OrderBy(e => e.TipSport)
-            .ThenBy(e => e.Denumire)
-            .Select(e => new EchipamentDto
-            {
-                Id = e.Id,
-                ComplexId = e.ComplexId,
-                Denumire = e.Denumire,
-                TipSport = e.TipSport,
-                StocTotal = e.StocTotal,
-                TarifInchirierePerOra = e.TarifInchirierePerOra,
-            })
-            .ToListAsync(ct);
     }
 
     private static TemporaryReservationResponse MapToResponse(Rezervare r) => new()
