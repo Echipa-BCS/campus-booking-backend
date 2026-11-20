@@ -4,11 +4,11 @@
 
 - **.NET 10 SDK** (`dotnet --version` → 10.0.402)
 - Solution `CampusBooking.sln` with 2 projects:
-  - `src/CampusBooking.API` — Web API (entrypoint: `Program.cs`, runs on `http://localhost:5000`)
+  - `src/CampusBooking.API` — Web API (entrypoint: `Program.cs`, runs on `http://localhost:5020`)
   - `src/CampusBooking.Infrastructure` — EF Core `AppDbContext` + entity configs + `Migrations/` + `DbSeeder`
 - **ORM**: `Microsoft.EntityFrameworkCore` 9.0.0 + `Pomelo.EntityFrameworkCore.MySql` 9.0.0 (EF Core 9 runs on .NET 10 runtime; Pomelo 10.x not yet released)
 - **Database**: MySQL 8 in Docker container `campus-mysql`, `localhost:3306`, db `campus_db`, user `root`/`root`. Schema matches ERD in `Skills/dbmodel.md` (8 tables).
-- **Backend port**: `http://localhost:5020` (configured via `--urls`; can be changed to any available port).
+- **Backend port**: `http://localhost:5020` (configured in `Properties/launchSettings.json`; can be overridden via `--urls`).
 - **CORS**: Configured to allow `http://localhost:5173` (Vite dev server) with credentials.
 - **Frontend**: `http://localhost:5173` (Vite), configured via `.env` `VITE_API_BASE_URL=http://localhost:5020`.
 - **Data seeding**: `IDbSeeder`/`DbSeeder` service registered scoped, runs on startup (idempotent — no-op if `complexe_sportive` already has data). Seeds:
@@ -21,8 +21,8 @@
 
 ```
 dotnet build CampusBooking.sln                 # build solution (0 errors)
-dotnet run --project src/CampusBooking.API     # start API (http://localhost:5000)
-curl http://localhost:5000/health              # → {"status":"healthy","database":"connected"}
+dotnet run --project src/CampusBooking.API     # start API (http://localhost:5020)
+curl http://localhost:5020/health              # → {"status":"healthy","database":"connected"}
 dotnet ef migrations add <Name> --project src/CampusBooking.Infrastructure --startup-project src/CampusBooking.API --output-dir Migrations   # new migration
 docker exec -i campus-mysql mysql -u root -proot campus_db   # mysql shell
 ```
