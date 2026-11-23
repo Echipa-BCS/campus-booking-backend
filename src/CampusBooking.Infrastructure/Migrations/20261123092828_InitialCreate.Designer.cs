@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CampusBooking.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261109083824_InitialCreate")]
+    [Migration("20261123092828_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -29,28 +29,35 @@ namespace CampusBooking.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<bool>("Activ")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("activ");
 
                     b.Property<DateTime>("DataExpirare")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("data_expirare");
 
                     b.Property<DateTime>("DataStart")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("data_start");
 
                     b.Property<int>("SedinteRamase")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("sedinte_ramase");
 
                     b.Property<string>("Tip")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("longtext")
+                        .HasColumnName("tip");
 
                     b.Property<int>("UtilizatorId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("utilizator_id");
 
                     b.HasKey("Id");
 
@@ -63,28 +70,34 @@ namespace CampusBooking.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Adresa")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("adresa");
 
                     b.Property<string>("Descriere")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("descriere");
 
                     b.Property<string>("Nume")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("nume");
 
                     b.Property<TimeSpan>("OraDeschidere")
-                        .HasColumnType("time");
+                        .HasColumnType("time")
+                        .HasColumnName("ora_deschidere");
 
                     b.Property<TimeSpan>("OraInchidere")
-                        .HasColumnType("time");
+                        .HasColumnType("time")
+                        .HasColumnName("ora_inchidere");
 
                     b.HasKey("Id");
 
@@ -95,28 +108,34 @@ namespace CampusBooking.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("ComplexId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("complex_id");
 
                     b.Property<string>("Denumire")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("denumire");
 
                     b.Property<int>("StocTotal")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("stoc_total");
 
                     b.Property<decimal>("TarifInchirierePerOra")
-                        .HasColumnType("decimal(10,2)");
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("tarif_inchiriere_per_ora");
 
                     b.Property<string>("TipSport")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("tip_sport");
 
                     b.HasKey("Id");
 
@@ -129,39 +148,48 @@ namespace CampusBooking.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int?>("AbonamentId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("abonament_id");
 
                     b.Property<DateTime>("DataPlata")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("data_plata");
 
                     b.Property<string>("MetodaPlata")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("metoda_plata");
 
                     b.Property<int?>("RezervareId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("rezervare_id");
 
                     b.Property<string>("Stare")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("stare");
 
                     b.Property<string>("StripeSessionId")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("stripe_session_id");
 
                     b.Property<decimal>("Suma")
-                        .HasColumnType("decimal(10,2)");
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("suma");
 
                     b.Property<int>("UtilizatorId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("utilizator_id");
 
                     b.HasKey("Id");
 
@@ -181,39 +209,49 @@ namespace CampusBooking.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("CodRezervare")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("cod_rezervare");
 
                     b.Property<DateTime>("DataEnd")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("data_end");
 
                     b.Property<DateTime?>("DataExpirareBlocaj")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("data_expirare_blocaj");
 
                     b.Property<DateTime>("DataStart")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("data_start");
 
                     b.Property<decimal>("DiscountAplicat")
-                        .HasColumnType("decimal(10,2)");
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("discount_aplicat");
 
                     b.Property<decimal>("PretTotal")
-                        .HasColumnType("decimal(10,2)");
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("pret_total");
 
                     b.Property<string>("Stare")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("longtext")
+                        .HasColumnName("stare");
 
                     b.Property<int>("TerenId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("teren_id");
 
                     b.Property<int>("UtilizatorId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("utilizator_id");
 
                     b.HasKey("Id");
 
@@ -230,16 +268,20 @@ namespace CampusBooking.Infrastructure.Migrations
             modelBuilder.Entity("CampusBooking.Infrastructure.Entities.RezervareEchipament", b =>
                 {
                     b.Property<int>("RezervareId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("rezervare_id");
 
                     b.Property<int>("EchipamentId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("echipament_id");
 
                     b.Property<int>("Cantitate")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("cantitate");
 
                     b.Property<decimal>("SubtotalPret")
-                        .HasColumnType("decimal(10,2)");
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("subtotal_pret");
 
                     b.HasKey("RezervareId", "EchipamentId");
 
@@ -252,31 +294,38 @@ namespace CampusBooking.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("ComplexId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("complex_id");
 
                     b.Property<int>("DurataMinimaOre")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("durata_minima_ore");
 
                     b.Property<bool>("EsteAcoperit")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("este_acoperit");
 
                     b.Property<string>("Nume")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("nume");
 
                     b.Property<decimal>("TarifOrarStandard")
-                        .HasColumnType("decimal(10,2)");
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("tarif_orar_standard");
 
                     b.Property<string>("TipSport")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("tip_sport");
 
                     b.HasKey("Id");
 
@@ -289,40 +338,48 @@ namespace CampusBooking.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("DataInregistrare")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("data_inregistrare");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("email");
 
                     b.Property<string>("Nume")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("nume");
 
                     b.Property<string>("ParolaHash")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("parola_hash");
 
                     b.Property<string>("Prenume")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("prenume");
 
                     b.Property<string>("Rol")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("longtext")
+                        .HasColumnName("rol");
 
                     b.Property<string>("Telefon")
                         .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("telefon");
 
                     b.HasKey("Id");
 
