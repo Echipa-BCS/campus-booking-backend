@@ -102,13 +102,35 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Apply pending migrations on startup (idempotent).
+// Initialize database on startup:
+// - migrations are applied ONLY when the schema does not exist yet (fresh database);
+// - an already-initialized database is left untouched (no pending-model-changes errors);
+// - seeding is idempotent: no-op if data already exists.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
 
-    // Seed database on startup (idempotent: no-op if data already exists).
+    var schemaExists = false;
+    try
+    {
+        await db.Database.OpenConnectionAsync();
+        using var cmd = db.Database.GetDbConnection()!.CreateCommand();
+        cmd.CommandText =
+            "SELECT COUNT(*) FROM information_schema.tables " +
+            "WHERE table_schema = DATABASE() AND table_name = 'complexe_sportive'";
+        schemaExists = Convert.ToInt64(await cmd.ExecuteScalarAsync()) > 0;
+        await db.Database.CloseConnectionAsync();
+    }
+    catch
+    {
+        // Database unreachable or not created yet — let MigrateAsync handle it below.
+    }
+
+    if (!schemaExists)
+    {
+        await db.Database.MigrateAsync();
+    }
+
     var seeder = scope.ServiceProvider.GetRequiredService<IDbSeeder>();
     await seeder.SeedAsync();
 }
