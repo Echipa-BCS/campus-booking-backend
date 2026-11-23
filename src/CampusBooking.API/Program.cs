@@ -102,9 +102,13 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Seed database on startup (idempotent: no-op if data already exists).
+// Apply pending migrations on startup (idempotent).
 using (var scope = app.Services.CreateScope())
 {
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+
+    // Seed database on startup (idempotent: no-op if data already exists).
     var seeder = scope.ServiceProvider.GetRequiredService<IDbSeeder>();
     await seeder.SeedAsync();
 }
