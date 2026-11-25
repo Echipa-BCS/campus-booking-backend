@@ -65,7 +65,7 @@ public class RezervareService : IRezervareService
             return (false, null, "Nu puteți efectua o rezervare în trecut. Alegeți o dată și un interval orar viitor.");
         }
 
-        using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
         try
         {
@@ -79,7 +79,7 @@ public class RezervareService : IRezervareService
 
             if (hasConflict)
             {
-                // Slot is not free: return without committing so the transaction rolls back.
+                await tx.RollbackAsync(ct);
                 return (false, null, UnavailableMessage);
             }
 
@@ -132,7 +132,7 @@ public class RezervareService : IRezervareService
 
             return (true, MapToResponse(rezervare), null);
         }
-        catch (Exception ex) when (IsConcurrencyConflict(ex))
+        catch (Exception ex) when (ConcurrencyExceptionHelper.IsConcurrencyConflict(ex))
         {
             // Concurrency conflict / deadlock: roll back (via disposal) and report the slot as unavailable.
             return (false, null, UnavailableMessage);
@@ -153,7 +153,7 @@ public class RezervareService : IRezervareService
     {
         var now = DateTime.UtcNow;
 
-        using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
         try
         {
@@ -267,6 +267,10 @@ public class RezervareService : IRezervareService
                 },
                 null);
         }
+        catch (Exception ex) when (ConcurrencyExceptionHelper.IsConcurrencyConflict(ex))
+        {
+            return (false, null, "Stocul echipamentului a fost actualizat concurent. Vă rugăm să reîncercați.");
+        }
         catch
         {
             await tx.RollbackAsync(ct);
@@ -350,37 +354,4 @@ public class RezervareService : IRezervareService
         PretTotal = r.PretTotal,
         DiscountAplicat = r.DiscountAplicat
     };
-
-    /// <summary>
-    /// Determines whether an exception represents a concurrency conflict
-    /// (EF Core concurrency exception or a MySQL deadlock / lock wait timeout).
-    /// </summary>
-    private static bool IsConcurrencyConflict(Exception ex)
-    {
-        var current = ex;
-        while (current != null)
-        {
-            if (current is DbUpdateConcurrencyException)
-            {
-                return true;
-            }
-
-            var typeName = current.GetType().FullName ?? string.Empty;
-            if (typeName.Contains("MySqlException", StringComparison.OrdinalIgnoreCase))
-            {
-                var message = current.Message ?? string.Empty;
-                if (message.Contains("deadlock", StringComparison.OrdinalIgnoreCase)
-                    || message.Contains("lock wait timeout", StringComparison.OrdinalIgnoreCase)
-                    || message.Contains("1213")
-                    || message.Contains("1205"))
-                {
-                    return true;
-                }
-            }
-
-            current = current.InnerException;
-        }
-
-        return false;
-    }
 }
