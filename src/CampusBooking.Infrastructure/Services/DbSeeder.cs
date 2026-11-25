@@ -16,9 +16,12 @@ public class DbSeeder : IDbSeeder
     /// <inheritdoc />
     public async Task SeedAsync(CancellationToken ct = default)
     {
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
         // Idempotent: do nothing if the complex table already has data.
         if (await _db.ComplexeSportive.AnyAsync(ct))
         {
+            await tx.RollbackAsync(ct);
             return;
         }
 
@@ -186,5 +189,6 @@ public class DbSeeder : IDbSeeder
         _db.Abonamente.AddRange(abonamente);
 
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 }

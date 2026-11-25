@@ -8,10 +8,18 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Allow optional git-ignored local overrides (e.g. developer-specific MySQL port/password).
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
+var connectionString = builder.Configuration.GetConnectionString("Default")
+    ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
+var mysqlVersionRaw = builder.Configuration["Database:MySqlVersion"];
+var serverVersion = Version.TryParse(mysqlVersionRaw, out var parsedMySqlVersion)
+    ? new MySqlServerVersion(parsedMySqlVersion)
+    : new MySqlServerVersion(AppDbContextFactory.DefaultMySqlVersion);
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(
-        builder.Configuration.GetConnectionString("Default"),
-        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("Default"))));
+    options.UseMySql(connectionString, serverVersion));
 
 // Catalog & search services
 builder.Services.AddScoped<IComplexeSportiveService, ComplexeSportiveService>();
@@ -102,37 +110,40 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Initialize database on startup:
-// - migrations are applied ONLY when the schema does not exist yet (fresh database);
-// - an already-initialized database is left untouched (no pending-model-changes errors);
-// - seeding is idempotent: no-op if data already exists.
-using (var scope = app.Services.CreateScope())
+// Initialize database on startup when enabled via configuration:
+// - Database:AutoMigrate runs EF Core MigrateAsync() so missing databases are created
+//   and all pending incremental migrations are applied cleanly.
+// - Database:SeedOnStartup runs the transactional, idempotent DbSeeder.
+// Both flags can be disabled in Testing / CI environments so test fixtures own DB lifecycle.
+var autoMigrate = app.Configuration.GetValue("Database:AutoMigrate", true);
+var seedOnStartup = app.Configuration.GetValue("Database:SeedOnStartup", true);
+
+if (autoMigrate || seedOnStartup)
 {
+    using var scope = app.Services.CreateScope();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    var schemaExists = false;
-    try
+    if (autoMigrate)
     {
-        await db.Database.OpenConnectionAsync();
-        using var cmd = db.Database.GetDbConnection()!.CreateCommand();
-        cmd.CommandText =
-            "SELECT COUNT(*) FROM information_schema.tables " +
-            "WHERE table_schema = DATABASE() AND table_name = 'complexe_sportive'";
-        schemaExists = Convert.ToInt64(await cmd.ExecuteScalarAsync()) > 0;
-        await db.Database.CloseConnectionAsync();
-    }
-    catch
-    {
-        // Database unreachable or not created yet — let MigrateAsync handle it below.
-    }
-
-    if (!schemaExists)
-    {
-        await db.Database.MigrateAsync();
+        try
+        {
+            await db.Database.MigrateAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Failed to apply EF Core migrations. If this database was initialized before migration 20261123092828_InitialCreate (legacy PascalCase schema) or via EnsureCreated, reset the local database once and restart.");
+            throw;
+        }
     }
 
-    var seeder = scope.ServiceProvider.GetRequiredService<IDbSeeder>();
-    await seeder.SeedAsync();
+    if (seedOnStartup)
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<IDbSeeder>();
+        await seeder.SeedAsync();
+    }
 }
 
 // Swagger middleware (enabled in all environments for easy local testing)
@@ -164,3 +175,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Expose entry point for WebApplicationFactory<Program> in integration tests.
+public partial class Program { }
