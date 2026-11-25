@@ -8,9 +8,12 @@ obj/
 *.suo
 *.user
 
-# Solution/user files
-*.slnx
+# User-specific solution/IDE files
 *.DotSettings.user
+
+# Local developer config overrides (DB credentials, ports)
+appsettings.Local.json
+appsettings.*.Local.json
 
 # Temporary logs
 *.log

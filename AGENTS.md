@@ -3,11 +3,12 @@
 ## Stack (initialized & verified)
 
 - **.NET 10 SDK** (`dotnet --version` → 10.0.402)
-- Solution `CampusBooking.sln` with 2 projects:
+- Solution `CampusBooking.slnx` with 3 projects:
   - `src/CampusBooking.API` — Web API (entrypoint: `Program.cs`, runs on `http://localhost:5020`)
-  - `src/CampusBooking.Infrastructure` — EF Core `AppDbContext` + entity configs + `Migrations/` + `DbSeeder`
-- **ORM**: `Microsoft.EntityFrameworkCore` 9.0.0 + `Pomelo.EntityFrameworkCore.MySql` 9.0.0 (EF Core 9 runs on .NET 10 runtime; Pomelo 10.x not yet released)
-- **Database**: MySQL 8 in Docker container `campus-mysql`, `localhost:3306`, db `campus_db`, user `root`/`root`. Schema matches ERD in `Skills/dbmodel.md` (8 tables).
+  - `src/CampusBooking.Infrastructure` — EF Core `AppDbContext` + `AppDbContextFactory` + entity configs + `Migrations/` + transactional `DbSeeder`
+  - `tests/CampusBooking.Tests` — xUnit + `WebApplicationFactory<Program>` + `Testcontainers.MySql` integration & `Serializable` concurrency tests
+- **ORM**: `Microsoft.EntityFrameworkCore` 9.0.0 + `Pomelo.EntityFrameworkCore.MySql` 9.0.0 (EF Core 9 runs on .NET 10 runtime; Pomelo 10.x not yet released). Local tool `dotnet-ef` 9.0.0 is pinned in `dotnet-tools.json`.
+- **Database**: MySQL 8.0 defined in `docker-compose.yml` (container `campus-mysql`, `localhost:3306`, db `campus_db`, user `root`/`root`). Schema matches ERD in `Skills/dbmodel.md` (8 tables). Local overrides can be placed in git-ignored `src/CampusBooking.API/appsettings.Local.json` or `ConnectionStrings__Default`.
 - **Backend port**: `http://localhost:5020` (configured in `Properties/launchSettings.json`; can be overridden via `--urls`).
 - **CORS**: Configured to allow `http://localhost:5173` (Vite dev server) with credentials.
 - **Frontend**: `http://localhost:5173` (Vite), configured via `.env` `VITE_API_BASE_URL=http://localhost:5020`.
@@ -20,11 +21,15 @@
 ## Exact commands (run from repo root)
 
 ```
-dotnet build CampusBooking.sln                 # build solution (0 errors)
-dotnet run --project src/CampusBooking.API     # start API (http://localhost:5020)
-curl http://localhost:5020/health              # → {"status":"healthy","database":"connected"}
-dotnet ef migrations add <Name> --project src/CampusBooking.Infrastructure --startup-project src/CampusBooking.API --output-dir Migrations   # new migration
-docker exec -i campus-mysql mysql -u root -proot campus_db   # mysql shell
+docker compose up -d                                                                                              # start MySQL 8.0 (campus-mysql)
+dotnet tool restore                                                                                               # restore pinned dotnet-ef 9.0.0
+dotnet build CampusBooking.slnx                                                                                   # build all projects (0 errors)
+dotnet test CampusBooking.slnx                                                                                    # run MySQL Testcontainers integration tests
+dotnet run --project src/CampusBooking.API                                                                        # start API (http://localhost:5020)
+curl http://localhost:5020/health                                                                                 # → {"status":"healthy","database":"connected"}
+dotnet tool run dotnet-ef migrations has-pending-model-changes --project src/CampusBooking.Infrastructure --startup-project src/CampusBooking.API
+dotnet tool run dotnet-ef migrations add <Name> --project src/CampusBooking.Infrastructure --startup-project src/CampusBooking.API --output-dir Migrations
+docker exec -i campus-mysql mysql -u root -proot campus_db                                                        # mysql shell
 ```
 
 ## Live endpoints (verified)

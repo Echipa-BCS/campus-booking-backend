@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/CampusBooking.API/CampusBooking.API.csproj" />
+  <Project Path="src/CampusBooking.Infrastructure/CampusBooking.Infrastructure.csproj" />
+  <Project Path="tests/CampusBooking.Tests/CampusBooking.Tests.csproj" />
+</Solution>
