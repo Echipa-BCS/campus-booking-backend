@@ -7,10 +7,14 @@ namespace CampusBooking.Infrastructure.Services;
 
 /// <summary>
 /// Safely initializes and migrates the CampusBooking MySQL database on startup.
-/// Handles both fresh databases and pre-existing databases that already have the
-/// valid <c>snake_case</c> initial schema created outside EF Core migrations
-/// (by baselining <see cref="InitialMigrationId"/> in <c>__EFMigrationsHistory</c>
-/// before running <see cref="DatabaseFacade.MigrateAsync"/>).
+/// <list type="bullet">
+/// <item><description>Fresh / new database: runs <see cref="DatabaseFacade.MigrateAsync"/> from scratch.</description></item>
+/// <item><description>Pre-existing valid <c>snake_case</c> schema without <c>__EFMigrationsHistory</c>:
+/// baselines <see cref="InitialMigrationId"/> and preserves all existing data, then runs pending migrations.</description></item>
+/// <item><description>Broken / incompatible local schema (e.g. legacy PascalCase tables or DDL conflict):
+/// when <c>recreateOnSchemaMismatch</c> is enabled (default in Development), logs a loud ALL-CAPS warning,
+/// drops all tables in the target schema, and re-applies all EF Core migrations cleanly.</description></item>
+/// </list>
 /// </summary>
 public static class DatabaseInitializer
 {
@@ -38,13 +42,58 @@ public static class DatabaseInitializer
         ("rezervari", "cod_rezervare")
     ];
 
+    // MySQL DDL / schema conflict error numbers (explicitly excludes auth/network errors).
+    private static readonly HashSet<int> SchemaConflictMySqlNumbers =
+    [
+        1050, // ER_TABLE_EXISTS_ERROR
+        1054, // ER_BAD_FIELD_ERROR (unknown column)
+        1060, // ER_DUP_FIELDNAME
+        1061, // ER_DUP_KEYNAME
+        1068, // ER_MULTIPLE_PRI_KEY
+        1091, // ER_CANT_DROP_FIELD_OR_KEY
+        1146, // ER_NO_SUCH_TABLE
+        1176, // ER_KEY_DOES_NOT_EXITS
+        1215  // ER_CANNOT_ADD_FOREIGN
+    ];
+
     public static async Task ApplyMigrationsAsync(
         AppDbContext db,
         ILogger? logger = null,
+        bool recreateOnSchemaMismatch = false,
         CancellationToken ct = default)
     {
-        await ReconcileBaselineHistoryIfNeededAsync(db, logger, ct);
-        await db.Database.MigrateAsync(ct);
+        try
+        {
+            await ReconcileBaselineHistoryIfNeededAsync(db, logger, ct);
+            await db.Database.MigrateAsync(ct);
+        }
+        catch (Exception ex) when (recreateOnSchemaMismatch && IsSchemaMismatchException(ex))
+        {
+            logger?.LogWarning(
+                ex,
+                """
+
+                ================================================================================
+                WARNING: DATABASE MIGRATION / SCHEMA MISMATCH DETECTED!
+                FALLBACK TRIGGERED (Database:RecreateOnSchemaMismatch = true):
+                DROPPING ALL TABLES IN THE CURRENT DATABASE AND RECREATING SCHEMA FROM SCRATCH!
+                ALL PREVIOUS LOCAL DATA IN THIS DATABASE WILL BE WIPED AND RE-SEEDED.
+                REASON: {Reason}
+                ================================================================================
+                """,
+                ex.Message);
+
+            await DropAllTablesInCurrentDatabaseAsync(db, ct);
+            await db.Database.MigrateAsync(ct);
+
+            logger?.LogWarning(
+                """
+
+                ================================================================================
+                DATABASE FALLBACK COMPLETED: ALL TABLES RECREATED AND EF CORE MIGRATIONS APPLIED!
+                ================================================================================
+                """);
+        }
     }
 
     private static async Task ReconcileBaselineHistoryIfNeededAsync(
@@ -92,19 +141,17 @@ public static class DatabaseInitializer
             var missingTables = InitialTables.Except(existingInitialTables, StringComparer.OrdinalIgnoreCase).ToList();
             if (missingTables.Count > 0)
             {
-                throw new InvalidOperationException(
+                throw new SchemaMismatchException(
                     $"Database contains a partial initial schema (missing tables: {string.Join(", ", missingTables)}) " +
-                    $"without migration '{InitialMigrationId}' recorded in __EFMigrationsHistory. " +
-                    "Cannot safely baseline a partial schema; drop and recreate the local database once.");
+                    $"without migration '{InitialMigrationId}' recorded in __EFMigrationsHistory.");
             }
 
             var hasValidSnakeCaseSchema = await HasExpectedSnakeCaseColumnsAsync(connection, ct);
             if (!hasValidSnakeCaseSchema)
             {
-                throw new InvalidOperationException(
+                throw new SchemaMismatchException(
                     $"Database tables already exist, but expected snake_case columns are missing " +
-                    $"(likely created by legacy PascalCase migration '{LegacyBrokenInitialMigrationId}'). " +
-                    "Reset the local database once so EF Core can recreate it with the snake_case schema.");
+                    $"(likely created by legacy PascalCase migration '{LegacyBrokenInitialMigrationId}').");
             }
 
             logger?.LogWarning(
@@ -123,6 +170,64 @@ public static class DatabaseInitializer
         }
     }
 
+    private static async Task DropAllTablesInCurrentDatabaseAsync(AppDbContext db, CancellationToken ct)
+    {
+        var openedHere = false;
+        var connection = db.Database.GetDbConnection();
+
+        if (connection.State != ConnectionState.Open)
+        {
+            await db.Database.OpenConnectionAsync(ct);
+            openedHere = true;
+        }
+
+        try
+        {
+            var tables = await GetExistingTablesAsync(connection, ct);
+            if (tables.Count == 0)
+            {
+                return;
+            }
+
+            await using var cmd = connection.CreateCommand();
+            var dropStatements = tables.Select(t => $"DROP TABLE IF EXISTS `{t.Replace("`", "``")}`;");
+            cmd.CommandText =
+                "SET FOREIGN_KEY_CHECKS = 0;\n" +
+                string.Join("\n", dropStatements) +
+                "\nSET FOREIGN_KEY_CHECKS = 1;";
+
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        finally
+        {
+            if (openedHere && connection.State == ConnectionState.Open)
+            {
+                await db.Database.CloseConnectionAsync();
+            }
+        }
+    }
+
+    private static bool IsSchemaMismatchException(Exception ex)
+    {
+        var current = ex;
+        while (current is not null)
+        {
+            if (current is SchemaMismatchException)
+            {
+                return true;
+            }
+
+            if (current is MySqlException mysqlEx && SchemaConflictMySqlNumbers.Contains(mysqlEx.Number))
+            {
+                return true;
+            }
+
+            current = current.InnerException;
+        }
+
+        return false;
+    }
+
     private static async Task<HashSet<string>> GetExistingTablesAsync(
         System.Data.Common.DbConnection connection,
         CancellationToken ct)
@@ -131,7 +236,7 @@ public static class DatabaseInitializer
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText =
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE();";
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE';";
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -197,4 +302,6 @@ public static class DatabaseInitializer
 
         await cmd.ExecuteNonQueryAsync(ct);
     }
+
+    private sealed class SchemaMismatchException(string message) : InvalidOperationException(message);
 }

@@ -103,4 +103,51 @@ public sealed class MigrationAndStartupTests
             Assert.Equal(4, await db.Terenuri.CountAsync());
         }
     }
+
+    [Fact]
+    public async Task DatabaseInitializer_BrokenLegacySchema_ThrowsWhenDisabled_AndRecreatesWhenFallbackEnabled()
+    {
+        // Simulate a corrupted / partial legacy schema (missing tables & PascalCase columns, no migration history).
+        using (var scope = _factory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.ExecuteSqlRawAsync("""
+                SET FOREIGN_KEY_CHECKS = 0;
+                DROP TABLE IF EXISTS `plati`, `rezervare_echipamente`, `abonamente`, `echipamente`, `rezervari`, `terenuri`, `utilizatori`, `complexe_sportive`, `__EFMigrationsHistory`;
+                SET FOREIGN_KEY_CHECKS = 1;
+                CREATE TABLE `complexe_sportive` (
+                    `Id` int NOT NULL AUTO_INCREMENT,
+                    `Nume` varchar(200) NOT NULL,
+                    `OraDeschidere` time NOT NULL,
+                    PRIMARY KEY (`Id`)
+                );
+                """);
+        }
+
+        // 1. With fallback disabled (Production default), it must fail loudly without wiping the DB.
+        using (var scope = _factory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
+                DatabaseInitializer.ApplyMigrationsAsync(db, recreateOnSchemaMismatch: false));
+        }
+
+        // 2. With fallback enabled (Development default), it drops broken tables and recreates the full schema cleanly.
+        using (var scope = _factory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await DatabaseInitializer.ApplyMigrationsAsync(db, recreateOnSchemaMismatch: true);
+
+            var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+            var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+
+            Assert.Contains(DatabaseInitializer.InitialMigrationId, applied);
+            Assert.Empty(pending);
+
+            var seeder = scope.ServiceProvider.GetRequiredService<IDbSeeder>();
+            await seeder.SeedAsync();
+            Assert.Equal(1, await db.ComplexeSportive.CountAsync());
+            Assert.Equal(4, await db.Terenuri.CountAsync());
+        }
+    }
 }

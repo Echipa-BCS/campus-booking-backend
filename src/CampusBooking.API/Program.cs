@@ -117,6 +117,7 @@ var app = builder.Build();
 // Both flags can be disabled in Testing / CI environments so test fixtures own DB lifecycle.
 var autoMigrate = app.Configuration.GetValue("Database:AutoMigrate", true);
 var seedOnStartup = app.Configuration.GetValue("Database:SeedOnStartup", true);
+var recreateOnSchemaMismatch = app.Configuration.GetValue("Database:RecreateOnSchemaMismatch", false);
 
 if (autoMigrate || seedOnStartup)
 {
@@ -128,7 +129,7 @@ if (autoMigrate || seedOnStartup)
     {
         try
         {
-            await DatabaseInitializer.ApplyMigrationsAsync(db, logger);
+            await DatabaseInitializer.ApplyMigrationsAsync(db, logger, recreateOnSchemaMismatch);
         }
         catch (Exception ex)
         {
