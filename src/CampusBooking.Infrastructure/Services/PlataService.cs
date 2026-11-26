@@ -89,6 +89,10 @@ public class PlataService : IPlataService
                 },
                 null);
         }
+        catch (Exception ex) when (ConcurrencyExceptionHelper.IsConcurrencyConflict(ex))
+        {
+            return (false, null, "Payment could not be completed due to a concurrent update. Please try again.");
+        }
         catch
         {
             await tx.RollbackAsync(ct);
@@ -181,6 +185,10 @@ public class PlataService : IPlataService
                     SedinteRamase = abonament.SedinteRamase,
                 },
                 null);
+        }
+        catch (Exception ex) when (ConcurrencyExceptionHelper.IsConcurrencyConflict(ex))
+        {
+            return (false, null, "Payment could not be completed due to a concurrent update. Please try again.");
         }
         catch
         {
