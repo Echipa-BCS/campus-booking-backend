@@ -64,7 +64,7 @@ public sealed class CampusBookingApiFactory : WebApplicationFactory<Program>, IA
         using (var scope = Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await db.Database.MigrateAsync();
+            await DatabaseInitializer.ApplyMigrationsAsync(db);
         }
 
         await using var conn = new MySqlConnection(ConnectionString);

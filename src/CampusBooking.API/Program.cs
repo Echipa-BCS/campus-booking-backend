@@ -128,13 +128,11 @@ if (autoMigrate || seedOnStartup)
     {
         try
         {
-            await db.Database.MigrateAsync();
+            await DatabaseInitializer.ApplyMigrationsAsync(db, logger);
         }
         catch (Exception ex)
         {
-            logger.LogError(
-                ex,
-                "Failed to apply EF Core migrations. If this database was initialized before migration 20261123092828_InitialCreate (legacy PascalCase schema) or via EnsureCreated, reset the local database once and restart.");
+            logger.LogError(ex, "Failed to initialize/migrate the CampusBooking database.");
             throw;
         }
     }

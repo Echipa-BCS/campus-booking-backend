@@ -74,4 +74,33 @@ public sealed class MigrationAndStartupTests
             Assert.Equal(2, await db.Abonamente.CountAsync());
         }
     }
+
+    [Fact]
+    public async Task DatabaseInitializer_BaselinesPreExistingSnakeCaseSchema_WithoutDroppingData()
+    {
+        await _factory.ResetDatabaseAsync(seed: true);
+
+        // Simulate a developer database created outside EF Core migrations (e.g. via SQL script):
+        // all 8 snake_case tables + data exist, while __EFMigrationsHistory is empty.
+        using (var scope = _factory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM `__EFMigrationsHistory`;");
+        }
+
+        using (var scope = _factory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await DatabaseInitializer.ApplyMigrationsAsync(db);
+
+            var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+            var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+
+            Assert.Contains(DatabaseInitializer.InitialMigrationId, applied);
+            Assert.Empty(pending);
+            // Existing seeded data must remain intact.
+            Assert.Equal(1, await db.ComplexeSportive.CountAsync());
+            Assert.Equal(4, await db.Terenuri.CountAsync());
+        }
+    }
 }
